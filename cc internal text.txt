@@ -1,0 +1,822 @@
+### Experiment 7: AWS Lambda
+
+AWS Lambda is a serverless compute service provided by Amazon Web Services that lets you run code without managing servers.
+
+**Step-by-step procedure for setting up an AWS Lambda function to trigger whenever an object is uploaded to an S3 bucket and update a DynamoDB table:**
+
+1.  **Create an AWS Account:** If you haven't already, sign up for an AWS account at `https://aws.amazon.com/`.
+2.  **Access AWS Management Console:** Log in to the AWS Management Console using your AWS account credentials.
+3.  **Open AWS Lambda Console:** Navigate to the Lambda service by either searching for "Lambda" in the AWS Management Console.
+4.  **Create a New Lambda Function:**
+    - Click on the "Create function" button.
+    - Choose "Author from scratch".
+    - Enter a name for your function (e.g., "S3ToDynamoDB").
+    - Choose Python as the runtime.
+    - Under "Permissions", create a new role with basic Lambda permissions or choose an existing role that has permissions to access S3 and DynamoDB.
+    - Click on the "Create function" button.
+5.  **Upload Code:**
+    - Write the Python code for your Lambda function. This code will be triggered whenever an object is uploaded to the specified S3 bucket.
+    - Here's an example code snippet:
+    ```python
+    import boto3
+    from uuid import uuid4
+
+    def lambda_handler(event, context):
+        dynamodb = boto3.resource('dynamodb')
+        dynamoTable = dynamodb.Table('newtable2')
+        if 'Records' in event:
+            for record in event['Records']:
+                bucket_name = record['s3']['bucket']['name']
+                object_key = record['s3']['object']['key']
+                size = record['s3']['object'].get('size', -1)
+                event_name = record['eventName']
+                event_time = record['eventTime']
+
+                dynamoTable.put_item(
+                    Item={
+                        'unique': str(uuid4()),
+                        'Bucket': bucket_name,
+                        'Object': object_key,
+                        'Size': size,
+                        'Event': event_name,
+                        'EventTime': event_time
+                    }
+                )
+        else:
+            print("No S3 event received")
+        return {
+            "statusCode": 200,
+            "body": "Data stored in DynamoDB"
+        }
+    ```
+6.  **Configure Trigger:**
+    - In the Designer section, click on "Add trigger".
+    - Select "S3" as the trigger type.
+    - Configure the trigger to listen to the S3 bucket where you want to trigger the Lambda function.
+    - Specify the event type (e.g., "All object create events").
+    - Click on the "Add" button.
+7.  **Configure Environment Variables (Optional):**
+    - If your Lambda function requires any environment variables (e.g., credentials for accessing DynamoDB), you can set them in the "Configuration" tab under "Environment variables".
+8.  **Test Your Function:**
+    - You can test your Lambda function manually by clicking on the "Test" button in the Lambda console.
+    - You can create a sample test event or use a custom test event to simulate the S3 event that triggers your function.
+9.  **Save and Deploy:**
+    - Click on the "Deploy" button to deploy your function.
+10. **Monitor Execution:**
+    - You can monitor the execution of your Lambda function in the Monitoring tab of the Lambda console.
+    - You can also view logs to troubleshoot any issues that may arise during execution.
+
+You have successfully set up a Lambda function to trigger whenever an object is uploaded to an S3 bucket and update a DynamoDB table accordingly.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+---
+
+### Experiment 8: SNS, SQS & S3-SNS-SQS-LAMBDA SERVICES
+
+SNS, SQS & S3–SNS–SQS–Lambda Services are messaging and event-driven components in Amazon Web Services used to build scalable and loosely coupled applications. Amazon SNS sends notifications, Amazon SQS stores messages reliably, and events from Amazon S3 can trigger AWS Lambda functions for automated processing.
+
+**1) Simple Notification Service (SNS)**
+
+**A) Create SNS Topic and Send Message to Email**
+
+We will:
+1. Create an SNS Topic
+2. Create an Email Subscription
+3. Confirm the subscription
+4. Publish a test message
+
+**Step 1: Create SNS Topic**
+1. Login to AWS Console
+2. In search bar → Type SNS
+3. Open Amazon SNS (Simple Notification Service)
+4. In left panel → Click Topics
+5. Click Create topic
+Configure:
+- Type → Select Standard
+- Name → MyEmailTopic
+- Leave other settings default (unless required)
+6. Click Create topic
+
+**Step 2: Create Email Subscription**
+1. Open your created topic
+2. Go to Subscriptions tab
+3. Click Create subscription
+Configure:
+- Protocol → Select Email
+- Endpoint → Enter your email address
+4. Click Create subscription
+
+**Step 3: Confirm Subscription**
+- Go to your email inbox
+- You will receive a mail from Amazon SNS
+- Click Confirm subscription
+Now your email is successfully subscribed.
+
+**Step 4: Publish Test Message**
+1. Open your SNS topic
+2. Click Publish message
+3. Add:
+   - Subject → Test Mail
+   - Message body → Hello this is SNS test
+4. Click Publish message
+You will receive email notification.
+
+**B) Trigger Email When S3 Object is Uploaded (S3 → SNS → Email)**
+
+Now we extend this setup:
+**Flow:** S3 Bucket → Event Notification → SNS Topic → Email
+
+**Step 1: Create S3 Bucket**
+1. Search → S3
+2. Click Create bucket
+Configure:
+- Bucket name → my-upload-bucket-2026
+- Choose Region (Important: Same region as SNS topic)
+- Keep default settings (unless specific requirement)
+3. Click Create bucket
+
+**Step 2: Create SNS Topic (If not already created)**
+You can reuse the topic from Part A OR create a new topic like:
+- Topic name → MyEmailTopic
+Make sure email subscription is confirmed.
+
+**Step 3: Allow S3 to Publish to SNS (Access Policy)**
+1. Open SNS Topic
+2. Go to Access policy
+3. Click Edit
+(Modern AWS console often auto-generates this when configuring from S3)
+
+**Step 4: Configure S3 Event Notification**
+1. Open your S3 bucket
+2. Go to Properties
+3. Scroll to Event notifications
+4. Click Create event notification
+Configure:
+- Event name → UploadNotification
+- Event types → Select: All object create events
+- Destination: Select SNS topic, Choose your topic (S3UploadNotification)
+5. Click Save changes
+
+**Step 5: Test It**
+1. Upload any file into the S3 bucket
+2. After upload completes: S3 triggers event → SNS receives publish request → SNS sends email
+You will receive mail about object upload.
+
+**2) Simple Queue Service (SQS)**
+
+**Create SQS Queue and Send Message**
+
+We will:
+1. Create an SQS Queue
+2. Send a message to the Queue
+3. Receive the message from the Queue
+
+**Step 1: Create SQS Queue**
+1. Login to AWS Console
+2. In the search bar → Type SQS
+3. Open Amazon Simple Queue Service
+4. In the dashboard → Click Create queue
+Configure:
+- Type → Select Standard
+- Name → MyQueue
+- Leave other settings as default
+5. Click Create queue
+Your SQS queue is now created successfully.
+
+**Step 2: Send Message to Queue**
+1. Open the MyQueue queue
+2. Click Send and receive messages
+3. In the Message body, type: `Hello this is SQS test message`
+4. Click Send message
+Your message is now stored in the queue.
+
+**Step 3: Receive Message from Queue**
+1. In the same page (Send and receive messages)
+2. Click Poll for messages
+You will see the message displayed.
+Example output: `Hello this is SQS test message`
+3. After processing, click Delete message (optional)
+
+**Result:**
+- SQS queue created
+- Message sent successfully
+- Message received from queue
+
+**3) S3 Bucket Event → SNS → SQS → Lambda Processing**
+
+S3 bucket event (like file upload) triggers SNS, which sends the notification to SQS. Then Lambda acts as the consumer and processes the message.
+
+**Services used:**
+- Amazon S3
+- Amazon Simple Notification Service (SNS)
+- Amazon Simple Queue Service (SQS)
+- AWS Lambda
+
+**Architecture Flow:** S3 Bucket (File Upload) → SNS Topic → SQS Queue → Lambda Function (Consumer)
+
+When a file is uploaded, S3 sends an event notification to SNS, which forwards the message to SQS. The Lambda function then reads and processes the message from SQS.
+
+**Step 1: Create S3 Bucket**
+1. Login to AWS Console
+2. Search S3, Open Amazon S3
+3. Click Create bucket
+Configure:
+- Bucket name → mys3eventbucket123 (must be unique)
+- Region → choose your region
+Leave other settings default.
+4. Click Create bucket
+
+**Step 2: Create SNS Topic**
+1. Search SNS in AWS Console
+2. Open Amazon SNS
+3. Click Topics → Create topic
+Configure:
+- Type → Standard
+- Name → MyS3SNSTopic
+4. Click Create topic
+Copy the SNS Topic ARN.
+
+**Step 3: Create SQS Queue**
+1. Search SQS in AWS Console
+2. Open Amazon SQS
+3. Click Create queue
+Configure:
+- Type → Standard
+- Name → MyS3Queue
+4. Click Create queue
+Copy the Queue ARN.
+
+**Step 4: Subscribe SQS to SNS**
+1. Open MyS3SNSTopic
+2. Click Create subscription
+Configure:
+- Protocol → Amazon SQS
+- Endpoint → Select MyS3Queue
+3. Click Create subscription
+
+**Step 5: Add Access Policy to SQS**
+Open MyS3Queue → Access Policy → Edit
+(Modern AWS console often auto-generates this when configuring from S3)
+Click Save.
+
+**Step 6: Add Access Policy to SNS**
+Open SNS Topic → Edit access policy
+Save the policy.
+
+**Step 7: Configure S3 Event Notification**
+1. Open S3 Bucket (mys3eventbucket123)
+2. Go to Properties
+3. Scroll to Event notifications, Click Create event notification
+Configure:
+- Event name → S3UploadEvent
+- Event type → All object create events
+Destination: SNS Topic → MyS3SNSTopic
+Click Save changes.
+
+**Step 8: Test the Architecture**
+1. Open the S3 bucket
+2. Click Upload file
+3. Upload any file (example: test.txt)
+Now: File Upload → S3 → Notification → SNS → Message → SQS
+
+**Step 9: Verify Message in SQS**
+1. Open MyS3Queue
+2. Click Send and receive messages
+3. Click Poll for messages
+You will see the S3 event notification message.
+
+**Step 10: Configure Lambda as Consumer**
+
+*Create Lambda Function*
+1. Search Lambda in AWS Console
+2. Open AWS Lambda
+3. Click Create Function
+Configure:
+- Author from scratch
+- Function name → SQSConsumerFunction
+- Runtime → Python 3.x
+Click Create function
+
+*Add SQS Trigger*
+1. Open SQSConsumerFunction
+2. Click Add Trigger
+3. Select SQS
+4. Choose MyS3Queue
+Click Add
+
+*Lambda Code*
+Replace code with:
+```python
+def lambda_handler(event, context):
+    for record in event['Records']:
+        print("Message received from SQS:")
+        print(record['body'])
+    return {
+        'statusCode': 200,
+        'body': 'Message processed successfully'
+    }
+```
+Click Deploy.
+
+**Final Architecture Flow:**
+User uploads file → Amazon S3 → SNS Topic → SQS Queue → Lambda Function (Consumer) → Processing / Logs / Database
+
+**Result:**
+When a file is uploaded to S3:
+1. S3 sends a notification to SNS
+2. SNS forwards the message to SQS
+3. SQS stores the message
+4. Lambda automatically reads and processes the message
+
+This creates a serverless event-driven architecture commonly used in real cloud applications.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+---
+
+### Experiment 9: Implementation of Elastic Load Balancer with Auto Scaling using AWS EC2 Instances
+
+Implementation of Elastic Load Balancer with Auto Scaling using AWS EC2 Instances involves distributing incoming traffic across multiple servers using Elastic Load Balancing and automatically adjusting the number of instances with Auto Scaling. This setup uses Amazon EC2 instances to ensure high availability, fault tolerance, and optimal performance based on demand.
+
+**Part 1: Elastic Load Balancer (ALB)**
+
+**Step 1: Launch Two EC2 Instances**
+
+*1.1 Launch EC2 Instance #1*
+1. Go to AWS EC2 Console → Launch Instance.
+2. Name: webserver-1
+3. Choose an AMI (Amazon Linux 2).
+4. Select Instance Type (e.g., t2.micro).
+5. Add Storage (default is fine).
+6. Configure Security Group:
+   - Allow SSH (22) from your IP
+   - Allow HTTP (80) from anywhere (0.0.0.0/0)
+7. Launch → Select/Create Key Pair → Launch.
+8. Run these commands after connecting VM:
+   ```bash
+   yum update -y
+   yum install httpd -y
+   systemctl start httpd
+   systemctl enable httpd
+   echo "This is Server 1" > /var/www/html/index.html
+   ```
+
+*1.2 Launch EC2 Instance #2*
+Repeat the process for the second instance, but with the message:
+```bash
+echo "This is Server 2" > /var/www/html/index.html
+```
+
+**Step 2: Create a Load Balancer (Application Load Balancer - ALB)**
+
+*2.1 Configure Security Group for Load Balancer*
+- Go to EC2 → Security Groups → Create Security Group
+  - Name: lb-sg
+  - Allow HTTP (80) from anywhere
+
+*2.2 Create the Load Balancer*
+1. Go to EC2 → Load Balancers → Create Load Balancer → Application Load Balancer
+2. Basic Configuration:
+   - Name: my-alb
+   - Scheme: Internet-facing
+   - IP address type: IPv4
+3. Listeners: Default: HTTP (80)
+
+*2.3 Configure Availability Zones*
+- Select the default VPC where your EC2 instances exist
+- Select two/all subnets
+
+*2.4 Configure Security Groups*
+- Choose the lb-sg security group created earlier
+
+*2.5 Configure Target Groups*
+1. Create a new target group:
+   - Name: web-servers-tg
+   - Target type: Instance
+   - Protocol: HTTP
+   - Port: 80
+   - Health checks: / (default)
+2. Register Targets:
+   - Select EC2 instances: webserver-1 and webserver-2
+   - Click Include as pending → Register
+
+*2.6 Review and Create*
+- Review all settings → Click Create Load Balancer
+- AWS will take a few minutes to provision the ALB
+
+**Step 3: Verify Load Balancer**
+1. Go to Load Balancers → Select ALB → Description → DNS name
+2. Copy the DNS name (e.g., `my-alb-123456.us-east-1.elb.amazonaws.com`)
+3. Paste it in a browser → You should see either "This is Server 1" or "This is Server 2" page.
+   - Refresh multiple times → Load balancer distributes traffic between the two instances.
+
+**Step 4: Optional – Test Health Checks**
+- Go to Target Groups → web-servers-tg → Targets
+- Ensure Status of both instances is healthy.
+
+**Part 2: Auto Scaling Group with Load Balancer**
+
+**Step 1: Create an AMI from Existing EC2 Instance**
+1. Go to EC2 Console → Instances
+2. Select the EC2 instance you already configured with the application
+3. Click Actions → Image and Templates → Create Image
+4. Provide Image Name: e.g., `my-webserver-AMI`
+5. Click Create Image
+6. Wait for the AMI to become available.
+
+**Step 2: Create a Launch Template**
+1. Go to EC2 → Launch Templates → Create Launch Template
+2. Launch Template Name: `my-launch-template`
+3. AMI: Select the AMI created in Step 1 (`my-webserver-AMI`)
+4. Instance Type: t2.micro
+5. Key Pair: Select your existing key pair
+6. Security Groups: Select the Load Balancer Security Group (allow HTTP 80)
+7. Click Create Launch Template
+
+**Step 3: Create Auto Scaling Group (ASG)**
+1. Go to EC2 → Auto Scaling Groups → Create Auto Scaling Group
+2. Name: `webserver-asg`
+3. Launch Template: Select `my-launch-template`
+4. Click Next
+
+*Step 3.1: Network Settings*
+1. VPC: Default VPC
+2. Availability Zones (AZs): Select all subnets
+3. Load Balancer: Enable "Attach to an existing load balancer"
+   - Select your existing Load Balancer
+4. Health Check: HTTP
+   - Set Health Check Grace Period: 300 seconds
+5. Click Next
+
+*Step 3.2: Configure Group Size*
+1. Desired Capacity: 2 (initial instances)
+2. Minimum Capacity: 1
+3. Maximum Capacity: 4
+4. Click Next
+
+*Step 3.3: Review and Create ASG*
+1. Review all settings
+2. Click Create Auto Scaling Group
+
+**Step 4: Verify Load Balancer and Auto Scaling**
+1. Go to Load Balancers → Select your Load Balancer
+2. Click Target Group → Registered Targets → You will see 2 healthy instances initially
+3. Check Auto Scaling Group → Instances
+4. Test auto recovery:
+   - Terminate one of the instances
+   - After a few seconds, ASG will launch a new instance automatically.
+   - Traffic will automatically be distributed by the Load Balancer.
+
+**Step 5: Test the Load Balancer**
+1. Copy the Load Balancer DNS Name from ALB
+2. Open in a browser → You should see your web page from one of the instances.
+3. Refresh multiple times → traffic alternates between instances.
+
+**Summary of Flow**
+1. Create AMI → snapshot of working EC2
+2. Create Launch Template → using AMI, security group
+3. Create Auto Scaling Group → attach Launch Template, set min/desired/max, attach Load Balancer
+4. Verify instances → ASG launches/replaces instances automatically
+5. Test Load Balancer → distributes traffic between all active instances
+
+This confirms Auto Scaling + Load Balancer is working correctly.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+---
+
+### Experiment 10: Elastic Beanstalk
+
+Elastic Beanstalk is a Platform as a Service (PaaS) offered by Amazon Web Services that simplifies application deployment and management. It automatically handles infrastructure tasks like provisioning, load balancing, and scaling, allowing developers to focus on writing code.
+
+**Prerequisites:** A web application ready (e.g., .war, .zip, or code)
+
+**Steps to Create Elastic Beanstalk Application**
+
+**Step 1: Open Elastic Beanstalk**
+1. Login to AWS Console
+2. Under Compute section -> Search for Elastic Beanstalk
+3. Click Create Application
+
+**Step 2: Create Application**
+1. Enter Application Name (e.g., MyApp)
+2. Add description (optional)
+3. Click Create
+
+**Step 3: Create Environment**
+- Click Create Environment
+- Choose: Web Server Environment (for web apps)
+- Click Select
+
+**Step 4: Configure Environment**
+- Enter Environment Name
+- Choose Platform: e.g., Tomcat / Node.js / Python / PHP, etc.
+- Under Application Code: Select "Upload your code"
+- Upload your .war or .zip file
+
+**Step 5: Configure Service Access**
+- Service Role → Select existing (e.g., LabRole)
+- EC2 Key Pair → Optional (for SSH)
+- EC2 Instance Profile → select (e.g., LabInstanceProfile)
+
+**Step 6: Configure Network**
+- Select VPC (default is fine)
+- Select Subnets
+- Enable Public IP
+
+**Step 7: Instance & Scaling Setup**
+- Choose Instance type (e.g., t2.micro – free tier)
+- Set: Min instances: 1, Max instances: 2 (or more)
+- Load Balancer → Enabled (optional but recommended)
+
+**Step 8: Review & Create**
+- Click Review
+- Click Create
+
+**Deployment Process**
+AWS automatically creates:
+1. EC2 instances
+2. Load Balancer
+3. Auto Scaling Group
+4. Security Groups
+
+**Access Your Application**
+After deployment: You will get a URL (domain link). Open it in browser → Your app will run.
+
+**Updating Application**
+1. Go to your environment
+2. Click Upload and Deploy
+3. Upload new version
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+---
+
+### Experiment 11: Amazon LEX
+
+Amazon Lex is a conversational AI service provided by Amazon Web Services that enables you to build chatbots and voice assistants using natural language understanding. It powers intelligent interactions by integrating speech recognition and text processing, similar to the technology behind virtual assistants.
+
+**Step 1: Open Amazon Lex**
+1. Login to AWS Console
+2. Search Amazon Lex
+3. Click Create bot
+
+**Step 2: Create Bot**
+1. Choose: Create a blank bot
+2. Enter: Bot name: `HotelBookingBot`
+3. IAM role → Create new role
+4. Remaining default → next
+5. Language: English
+6. Voice (optional)
+7. Click Done
+
+**Step 3: Create Intent**
+1. Go to Intents
+2. Name: `BookHotel`
+3. Click Create
+
+**Step 4: Add Sample Utterances**
+Add user sentences (how user talks):
+- "I want to book a hotel"
+- "Book a room"
+- "Reserve hotel"
+- "I need a room"
+
+**Step 5: Create Slots (User Inputs) - Age**
+Slots collect user information.
+- Click Add slot
+- Fill:
+  - Slot name: `age`
+  - Slot type: `AMAZON.Number`
+  - Prompt: "What is your age?"
+  - Mark as Required
+
+**Add IF Conditions (Conditional Logic)**
+Used to control flow based on slot values.
+Example Condition: If `{age}` < 18
+- Go to Intent → Slots -> under Advanced options
+- Scroll to Slot capture: success response -> Conditional branching
+- Click Add condition
+- Response: "You are not eligible for hotel booking."
+
+**Step 6: Create More Slots**
+- **Location Slot:**
+  - Slot name: `location`
+  - Slot type: `AMAZON.City`
+  - Prompt: "Which city do you want?"
+  - Mark as Required
+- **Check-in Date Slot:**
+  - Slot name: `checkin`
+  - Slot type: `AMAZON.Date`
+  - Prompt: "What is your check-in date?"
+  - Mark as Required
+- **Number of Nights Slot:**
+  - Slot name: `nights`
+  - Slot type: `AMAZON.Number`
+  - Prompt: "How many nights will you stay?"
+  - Mark as Required
+
+**Step 7: Create Custom Slot Type (RoomType)**
+- Go to Slot Types
+- Click Add slot type -> add blank slot type
+- Name: `RoomType`
+- Add values: Single, Double, Suite
+- Save slot type
+- Now use this in a slot: go back to intent
+  - Slot name: `RoomType`
+  - Slot type: `RoomType`
+
+**Step 8: Add Response Cards (Card Groups)**
+Used for buttons (quick replies)
+- Go to slot prompts -> more prompt options
+- Click Add -> add card groups
+- Card Title: "Select Room Type"
+- Add Buttons: Single, Double, Suite
+
+**Step 9: Configure Responses**
+- Initial Response: "Welcome to Hotel Booking! What is your name?"
+- Confirmation: "Do you want to confirm booking in {location} for {nights} nights?"
+
+**Step 10: Build & Test**
+1. Click Build
+2. Use Test chatbot panel
+3. Try: "Book a hotel"
+
+**Sample output:**
+- User: Book a hotel
+- Bot: What is your age?
+- User: 25
+- Bot: Which city do you want?
+- User: Hyderabad
+- Bot: Check-in date?
+- User: Tomorrow
+- Bot: Number of nights?
+- User: 2
+- Bot: Select room type
+- User: Double
+- Bot: Do you want to confirm booking in Hyderabad for 2 nights?
+- User: Yes
+- Bot: Booking confirmed.
+
+
+
+
+
+
+
+
+
+
+
+
+---
+
+### Experiment 12: Creating IAM USER with permission & Access it with GUI and CLI
+
+Creating an IAM User with Permission & Access via GUI and CLI involves setting up a user in Amazon Web Services with specific roles and policies for secure access. The user can then log in through the AWS Management Console (GUI) or use access keys to interact with services via the Command Line Interface (CLI).
+
+**Part A: GUI Access (Management Console)**
+
+**Step 1:** Log in to the AWS Management Console as the Root User.
+**Step 2:** Search for IAM under the "Security, Identity, & Compliance" category.
+**Step 3:** Navigate to Users and click Create user.
+**Step 4:** User Details: Enter a name (e.g., `S3_Specialist`). Check the box for "Provide user access to the AWS Management Console" – custom password.
+**Step 5:** Set Permissions: Select "Attach policies directly." Search for and select `AmazonS3FullAccess`.
+**Step 6:** Review & Create: Complete the wizard. On the final page, click Download .csv file.
+**Step 7:** Copy your 12-digit Account ID and Sign Out.
+**Step 8:** Use the Sign-in URL from the .csv (or go to the AWS sign-in page and select IAM User).
+**Step 9:** Enter the Account ID, then the IAM Username and Password from the .csv.
+
+- **Test 1 (Failure):** Navigate to EC2. Try to view instances. You will see "Access Denied." This proves the user is restricted.
+- **Test 2 (Success):** Navigate to S3. Create a new bucket. It will work perfectly because of the attached policy.
+
+**Part B: CLI Access (Programmatic Access)**
+
+**Objective:** Access AWS resources from a standalone system (CMD/Terminal) using security keys.
+
+**1. Credential Generation**
+**Step 1:** While logged in as an Admin/Root, go to IAM > Users and click on your user (`S3_Specialist`).
+**Step 2:** Go to the Security credentials tab. Scroll to Access keys and click Create access key.
+**Step 3:** Select Command Line Interface (CLI). Acknowledge the warning and click Next.
+**Step 4:** Download the .csv file. **Critical:** This contains the Access Key ID and Secret Access Key.
+
+**2. Standalone System Configuration**
+**Step 5:** Install the AWS CLI Tool on your computer.
+**Step 6:** Open your Command Prompt (CMD) or Terminal.
+**Step 7:** Type `aws configure` and press Enter.
+**Step 8:** Provide the following from your .csv:
+   - Access Key ID
+   - Secret Access Key
+   - Default region (e.g., `ap-south-1`)
+   - Default output: `json`
+
+**3. Verification via Commands**
+- Run: `aws ec2 describe-instances`
+  - **Result:** You will get an AccessDenied error. This confirms the CLI is respecting the same IAM policy as the GUI.
+- Run: `aws s3 ls`
+  - **Result:** This should list your buckets (Success).
+- Run: `aws s3 mb s3://your-unique-bucket-name`
+  - **Result:** Success.
+
+Check in the console to see the bucket created from CLI.
+
+---
+
+### Experiment 13: Attach an IAM Role to an EC2 Instance (S3 access without keys)
+
+Attaching an IAM Role to an EC2 Instance (S3 Access without Keys) allows secure access to Amazon S3 from an Amazon EC2 instance without using access keys. By assigning an IAM role with appropriate permissions, the instance can automatically access S3 resources through temporary credentials provided by Amazon Web Services.
+
+**Step 1 — Create Role in AWS IAM**
+1. Open IAM Console → Roles → Create role
+2. Trusted entity: Select AWS Service
+3. Use case: Choose EC2
+4. Click Next
+
+**Step 2 — Add Permissions**
+1. Search policy: `AmazonS3FullAccess`
+2. Select it → Next
+
+**Step 3 — Name the Role**
+- Name: `EC2-S3-Role`
+- Click Create role
+
+**Step 4 — Attach Role to EC2 Instance**
+1. Go to EC2 Dashboard
+2. Select running instance
+3. Actions → Security → Modify IAM role
+4. Select `EC2-S3-Role` → Update
+
+**Step 5 — Verify from Instance (No Access Keys!)**
+SSH into the instance and run:
+- `aws s3 ls`
+  - **Result:** Works (Success)
+- `aws ec2 describe-instances`
+  - **Result:** Unauthorized (No EC2 permission)
+
+**Reason:** The instance receives temporary credentials from the IAM Role automatically.
